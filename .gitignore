@@ -1,0 +1,7 @@
+# generated artefacts that are per-user or regenerable
+__pycache__/
+*.kicad_prl
+*-backups/
+_autosave-*
+# floorplan review artefact: python3 gen_pcb.py --stage place
+buck-tpsm33610-floorplan.*

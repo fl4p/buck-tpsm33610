@@ -1,0 +1,11 @@
+(version 1)
+
+# The RDN0011B land is TI's, drawing 4231197/B 08/2025 (SNVSCS7E p.47), and its
+# own pad-to-pad gaps are 0.100 mm -- below this board's 0.15 mm design
+# clearance. Widening the land would break the package; relaxing the global rule
+# would hide every other tight spot. So the exception is scoped BY NAME to U1,
+# and only where both items are U1's own pads: U1 against a track, a via or a
+# pour still has to clear the full 0.15 mm.
+(rule "RDN0011B land pattern, U1 internal gaps"
+	(constraint clearance (min 0.09mm))
+	(condition "A.memberOfFootprint('U1') && B.memberOfFootprint('U1')"))

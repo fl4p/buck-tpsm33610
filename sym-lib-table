@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "buck-tpsm33610")(type "KiCad")(uri "${KIPRJMOD}/lib/buck-tpsm33610.kicad_sym")(options "")(descr "Project symbols: TPSM33610S3Q"))
+)

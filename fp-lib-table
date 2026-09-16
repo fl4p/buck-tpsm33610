@@ -1,0 +1,5 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "buck-tpsm33610")(type "KiCad")(uri "${KIPRJMOD}/lib/buck-tpsm33610.pretty")(options "")(descr "Project footprints: RDN0011B land and the solder pads"))
+  (lib (name "Connector_buck-tpsm33610")(type "KiCad")(uri "${KIPRJMOD}/lib/buck-tpsm33610.pretty")(options "")(descr "Same directory under a second nickname: J1's stock symbol filter is Connector*:*_1x??_*, so the derived header land has to live under a Connector* nickname"))
+)
