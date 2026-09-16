@@ -152,13 +152,24 @@ def _u(x, y, r):
 POS = {
     "U1": _u(0.00, 0.00, 90),
 
-    "R4": _u(-0.90, 2.75, 180),
-    "C2": _u(-0.975, 4.00, 180),     # VIN pad under R4's VIN pad, GND pad west
-    "C1": _u(-4.390, 6.165, 0),      # rot 0, not 180 (Fab, 2026-09-16): VIN is
-                                     # now the WEST pad, GND the east one.
+    "R4": _u(-0.90, 4.410, 180),   # swapped with C2 (Fab, 2026-09-16)
+    "C2": _u(-0.975, 3.070, 180),    # CIN HF hard against U1's pin row. R4 is a
+                                     # 0R EN pull-up carrying ~10 nA and was
+                                     # occupying this slot; TI SNVSCS7E 8.5.1 item
+                                     # 1 wants the input cap here instead.
+    "C1": _u(-4.390, 6.165, 180),    # rot 180 (Fab, 2026-09-16): VIN is the EAST
+                                     # pad, GND the west one. That faces the VIN
+                                     # pad at U1 instead of away from it and takes
+                                     # /VIN C1.1<->U1.3 from 6.134 to 4.642 mOhm,
+                                     # paying 0.39 mOhm on GND J1.2<->U1.10 (1.427
+                                     # -> 1.818, against a 10 mOhm budget).
+                                     # BOTH ends measured at --grid 0.1: the 0.2 mm
+                                     # default under-resolves this board (it makes
+                                     # the GND solve singular outright) and inflated
+                                     # the same path to 12.259 mOhm.
                                      # 0.19 mm south: the most
                                      # that fits -- J1's courtyard starts 0.190 mm
-                                     # below C1's, and its PTH pads 1.45 mm below.    # 1206: VIN run enters its VIN pad from the east
+                                     # below C1's, and its PTH pads 1.45 mm below.
     "C4": _u( 0.015, 6.175, 180),
 
     # ---- the west cluster, re-placed 2026-09-13 for routability (see the
@@ -247,25 +258,36 @@ TRACKS = [
     # The 0.39 mm neck is the run between C2's GND pad and C4's: 0.70 mm of
     # channel, 0.155 mm of clearance either side. At 35 um that is ~1.2 A at a
     # 20 K rise, over 2.6 mm -- the input current at the 3 V end of the range.
-    ("/VIN", F_CU, 0.55, [(-0.535, 1.8625), (-0.535, 2.7505)]),          # pin 3 -> R4.1
-    ("/VIN", F_CU, 0.72, [(-0.335, 2.7505), (-0.335, 4.0005)]),          # R4.1 -> C2.1
+    ("/VIN", F_CU, 0.30, [(-0.520, 1.8625), (-0.520, 3.0700)]),          # pin 3 -> C2.1
+    ("/VIN", F_CU, 0.40, [(-0.390, 3.3000), (-0.390, 4.4100)]),          # C2.1 -> R4.1
     # Split into three widths, 2026-09-16: only the MIDDLE leg is in the 0.70 mm
     # channel between C2's GND pad and C4's. The two vertical legs are in open
     # copper and were only 0.39 because they used to share one polyline -- and
     # after C1 moved 0.95 mm south this path went 4.51 -> 5.91 mOhm, over its
     # 5 mOhm budget.
-    ("/VIN", F_CU, 0.72, [(-0.20, 4.0005), (-0.20, 4.889)]),             # C2.1 -> channel
-    ("/VIN", F_CU, 0.44, [(-0.20, 4.889), (-5.865, 4.889)]),             # neck -> C1.1 (west)
-    ("/VIN", F_CU, 0.72, [(-5.865, 4.889), (-5.865, 5.800)]),            # into C1.1
-    ("/VIN", F_CU, 0.70, [(-5.865, 6.500), (-5.865, 8.600), (-4.200, 8.600),
+    ("/VIN", F_CU, 0.40, [(-0.390, 4.4100), (-0.390, 5.0025)]),          # R4.1 -> channel
+    # R4 now sits in the old C2/C4 channel, so the neck is pinched to 0.245 mm
+    # between R4's lands (bottom 4.720) and C4's (top 5.275) until it clears
+    # C4 at x -2.035, after which C1 and the /FB via allow 0.44 again.
+    ("/VIN", F_CU, 0.245, [(-0.390, 5.0025), (-2.200, 5.0025)]),         # pinched
+    ("/VIN", F_CU, 0.245, [(-2.200, 5.0025), (-2.400, 4.889)]),          # jog
+    # C1 rotated 180 (2026-09-16), so its VIN pad is the EAST one: the run stops
+    # 2.95 mm short of where it used to and never crosses under the body.
+    ("/VIN", F_CU, 0.44, [(-2.400, 4.889), (-3.160, 4.889)]),            # -> C1.1 (east)
+    # starts at 5.050, not 4.889: at 0.72 wide the round end cap reaches 0.36 mm
+    # below the start point, and /EN's top edge is at 4.485 -- starting on the
+    # corner left 0.044 mm. 5.050 puts the cap at 4.690, 0.205 mm clear, and the
+    # endpoint still sits inside the 0.44 horizontal (4.669..5.109).
+    ("/VIN", F_CU, 0.72, [(-3.160, 5.050), (-3.160, 5.800)]),            # into C1.1
+    ("/VIN", F_CU, 0.70, [(-3.160, 6.500), (-3.160, 8.600), (-4.200, 8.600),
                           (-4.200, 9.1745)]),                            # C1.1 -> J1.1
 
     # ---- GND: pad stubs onto vias. Everything else is the pour.
     ("GND", F_CU, 0.50, [(-0.935, 0.1125), (-0.435, 0.1125)]),           # U1.10 -> via, east
     ("GND", F_CU, 0.40, [(-5.500, -1.5200), (-5.850, -1.5200)]),         # C3.2  -> via
-    ("GND", F_CU, 0.50, [(-2.235, 4.0025), (-2.435, 4.0025)]),           # C2.2  -> via
+    ("GND", F_CU, 0.50, [(-2.235, 3.0725), (-2.435, 3.0725)]),           # C2.2  -> via
     ("GND", F_CU, 0.40, [(-0.785, 6.1625), (0.065, 6.1625)]),            # C4.2  -> via
-    ("GND", F_CU, 0.40, [(-2.915, 6.6000), (-2.915, 7.3400)]),           # C1.2  -> via
+    ("GND", F_CU, 0.40, [(-5.850, 6.3025), (-5.850, 7.3400)]),           # C1.2  -> via
     ("GND", F_CU, 0.80, [(-1.435, 6.3625), (-1.435, 9.1745)]),           # C4.2  -> J1.2
 
     # ---- VOUT: the pour carries U1.4 -> C4 -> J1.3. These two stubs land the
@@ -296,8 +318,11 @@ TRACKS = [
     ("/MODE", F_CU, 0.20, [(-5.875, 0.7495), (-6.240, 0.7495)]),         # via    -> JP1.2
     ("/PGOOD", F_CU, 0.15, [(-2.035, 1.4995), (-2.935, 1.4995),
                             (-3.185, 1.7495), (-3.735, 1.7495)]),         # pin 1  -> R3.2
-    ("/EN", F_CU, 0.25, [(-1.235, 1.8625), (-1.235, 2.7505)]),           # pin 2  -> R4.2
-    ("/EN", F_CU, 0.20, [(-1.535, 2.7505), (-3.735, 2.7505)]),           # R4.2   -> R5.1
+    ("/EN", F_CU, 0.25, [(-1.150, 1.8625), (-1.250, 2.1800), (-1.250, 2.3000),
+                         (-0.975, 2.5000), (-0.975, 3.8500),
+                         (-1.410, 4.2800)]),                             # pin 2 -> R4.2
+    ("/EN", F_CU, 0.15, [(-1.535, 4.4100), (-3.735, 4.4100),
+                         (-3.735, 2.9000)]),                             # R4.2 -> R5.1
 
     # ---- B.Cu: the six named crossings. MODE, PGOOD and EN run north to their
     # solder pads in three lanes that never cross; MODE branches west along the
@@ -306,7 +331,7 @@ TRACKS = [
                            (-5.085, -0.7375), (-5.085, -1.2375)]),       # via -> TP3
     ("/MODE", B_CU, 0.15, [(-5.085, -0.7375), (-5.085, 0.7495), (-5.875, 0.7495)]),
     ("/PGOOD", B_CU, 0.15, [(-2.935, 1.4995), (-2.035, 0.5995), (-2.035, -1.1375)]),
-    ("/EN", B_CU, 0.15, [(-2.085, 2.7505), (-1.635, 2.3005), (-1.635, -1.1875),
+    ("/EN", B_CU, 0.15, [(-1.250, 2.1800), (-1.635, 1.8000), (-1.635, -1.1875),
                          (-0.735, -1.1875)]),
     ("/FB", B_CU, 0.15, [(-2.935, -0.2375), (-3.585, 0.4125), (-3.585, 4.2625),
                          (-4.735, 4.2625)]),                             # via -> C6.2/R2.1
@@ -323,12 +348,12 @@ TRACKS = [
 # (net, (x, y)) -- every via is a layer ASSIGNMENT with a stated destination.
 VIAS = [
     ("GND", (-0.435, 0.1125)),     # U1.10, east of the land: the hot-loop return
-    ("GND", (-2.435, 4.0025)),     # C2.2, the other end of that loop
-    ("GND", (-2.985, 4.0025)),     # a second one beside it: two 0.25 mm
+    ("GND", (-2.435, 3.0725)),     # C2.2, the other end of that loop
+    ("GND", (-2.985, 3.0725)),     # a second one beside it: two 0.25 mm
                                    # barrels in parallel on the highest-di/dt
                                    # return this board has
     ("GND", (0.065, 6.1625)),      # C4.2, the output loop
-    ("GND", (-2.915, 7.34)),       # C1.2, SOUTH of the land
+    ("GND", (-5.850, 7.34)),       # C1.2, NORTH of the land (C1 rotated 180)
     ("GND", (-5.89, 2.9005)),      # west margin, same (0.4 mm south of where
                                # it was: JP1 moved down onto it)
     ("GND", (-5.850, -1.5200)),    # C3.2, stitching CVCC's ground pocket. Its
@@ -338,7 +363,7 @@ VIAS = [
     ("GND", (-5.435, 1.2495)),     # the MODE row pocket: R6.2 sits in a
                                    # pour region the rows and the VCC feed
                                    # cut off from every other one
-    ("/EN", (-2.085, 2.7505)),     # -> TP1
+    ("/EN", (-1.250, 2.1800)),     # -> TP1
     ("/PGOOD", (-2.935, 1.4995)),  # -> TP2
     ("/MODE", (-2.935, 0.4995)),   # -> TP3
     ("/MODE", (-5.875, 0.7495)),   # -> JP1.2. x is set by the DRILL, not the
