@@ -1,0 +1,9 @@
+# generated artefacts that are per-user or regenerable
+__pycache__/
+*.kicad_prl
+*-backups/
+_autosave-*
+# floorplan review artefact: python3 gen_pcb.py --stage place
+buck-tpsm33610-floorplan.*
+# vendor datasheets are not redistributed; PROVENANCE.md carries the URL and SHA-256
+datasheets/*.pdf
