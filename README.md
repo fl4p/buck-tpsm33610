@@ -4,7 +4,7 @@ A 3–36 V to 3.3 V, 1 A break-out board for the TI **TPSM33610S3QRDNRQ1** — a
 synchronous buck *module* with the controller, both FETs, the inductor and the
 bootstrap capacitor inside one 3.5 × 4.5 × 2.1 mm QFN-FCMOD package.
 
-**9.01 × 12.525 mm**, 2 layers, straddles a breadboard on 0.4 in header rows.
+**9.01 × 12.525 mm**, 2 layers, one 2.54 mm header row: VIN, GND, VOUT.
 
 > **Status: unbuilt.** This board has never been fabricated, assembled or
 > powered. No gerbers have been generated. Every number below is either a
@@ -57,10 +57,10 @@ and that is exactly how an isolated pad hid here once.
 |---|---|
 | Input | 3–36 V (40 V abs max), no reverse-polarity or transient protection |
 | Output | 3.3 V fixed, 1 A, ±1 % |
-| Switching | 2.2 MHz, auto/PFM by default, DRSS spread-spectrum active |
-| Layers | 2 × 70 µm (2 oz), ENIG, 1.6 mm FR4 |
-| Drawn to | 200 µm track / 200 µm clearance |
-| I/O | 2 × 1×3 headers on 0.4 in rows: VIN, GND, VOUT |
+| Switching | 2.2 MHz, auto/PFM by default (see DRSS note below) |
+| Layers | 2 × 35 µm (1 oz), ENIG, 1.6 mm FR4 |
+| Drawn to | 150 µm track / 150 µm clearance |
+| I/O | one 1×3 header, 2.54 mm: VIN, GND, VOUT |
 | Control | EN, PGOOD, MODE on 1.0 mm solder pads; JP1 selects FPWM |
 
 Pin rules from TI **SNVSCS7E** that shape the whole layout: SW (5, 6) carries no
@@ -70,8 +70,9 @@ out at 20 V, so its pull-up goes to VOUT. `gen_sch.py` asserts these as an
 abs-max-per-pin gate at generation time, so a net that could over-volt a pin
 fails the build rather than the board.
 
-The module has **no internal input bypass** — only the BOOT–SW bootstrap cap.
-External bypass directly at the VIN pin is required, not optional.
+The datasheet states the 100 nF bootstrap cap is internal (p.5, pin 7) and
+requires external bypass at VIN (p.5, pin 3). It does not say whether any
+internal VIN bypass exists; assume none and bypass externally.
 
 ### Two layers
 
@@ -98,25 +99,41 @@ The generators are gates, not reports — each fails the build:
 
 ## Known and open
 
-- **Thermal is an estimate, not a measurement.** ~105 °C/W at 70 µm (range
-  95–115) for this board area, against TI's 54.1 °C/W JESD 51-7 four-layer figure
-  and 22 °C/W for their EVM. That predicts full 1 A to roughly 80 °C ambient at
+- **Thermal is an estimate, not a measurement, and the estimate is unsourced.**
+  ~120 °C/W at the 35 µm this board actually specifies, against TI's 54.1 °C/W
+  JESD 51-7 four-layer figure and 22 °C/W for their EVM. No derivation for that
+  number exists in this repo — treat it as an order-of-magnitude expectation, not
+  a bounded estimate. That predicts full 1 A to roughly 80 °C ambient at
   24 V and ~64 °C at 36 V. Unverified. ΨJB is 16.3 °C/W, so the acceptance test
   is to probe board temperature beside the GND land and compute
   `Tj = Tboard + 16.3 × Pd`.
 - **Input loop inductance: 3.67 nH of board copper** (C1‖C2), extracted with
-  FastHenry at 0.25 mm mesh pitch, converged to ±1 % over a 2.5× pitch range.
-  This is **board copper only and a lower bound** — the module's pad-to-die path
-  is not published and is deliberately not estimated. Not cross-checked against
-  hardware.
-- **The VIN neck is 0.245 mm** and is a copper-weight constraint. At the
-  specified 70 µm, IPC-2221 gives 1.43 A at 10 K rise against a worst-case
-  ~1.2–1.4 A input at 3 V in / 1 A out — it passes. At 35 µm the same neck gives
-  0.86 A and will not carry full load at low input voltage. Do not drop the
-  copper weight without re-checking this.
+  FastHenry at 0.25 mm mesh pitch, ±1 % over a 2.5× pitch range. This is **board
+  copper only and a lower bound** — the module's pad-to-die path is not published
+  and is deliberately not estimated. Not cross-checked against hardware. **The
+  extraction tool is not in this repo** and neither is its output, so nothing here
+  substantiates that figure; it is reproduced from an external run.
+- **The VIN neck is 0.245 mm and is marginal at the specified copper weight.**
+  At 35 µm, IPC-2221 gives **0.86 A at 10 K rise and 1.17 A at 20 K**. Worst-case
+  input current is ~1.0–1.1 A, which occurs at the low end of the *regulating*
+  input range (around 3.5–4 V, where duty is highest); below that the part is in
+  dropout and no longer making 3.3 V. So the neck sits **above its 10 K rating and
+  inside its 20 K rating** — it works, at a higher local rise than is comfortable.
+  At 70 µm the same neck gives 1.43 A / 1.93 A and is unambiguously fine. TI asks
+  for 2 oz outer layers (SNVSCS7E p.35 item 6); this board is drawn at 1 oz.
+- **Resistance of the declared power paths** at 35 µm, 0.1 mm solver grid:
+  `/VIN C1.1↔U1.3` 9.27 mΩ, `/VIN J1.1↔U1.3` 11.04, `GND J1.2↔U1.10` 3.23,
+  `GND C2.2↔U1.10` 2.36, `/VOUT J1.3↔U1.4` 1.84, `/VOUT U1.4↔C4.1` 0.96.
+- **Spread spectrum is mostly OFF in the shipped default.** Table 7-2 calls the
+  MODE-low state "auto mode with spread spectrum", but §7.3.8 p.18 overrides it:
+  DRSS is disabled whenever the clock is not free-running — including when the
+  clock slows under light load in auto mode, and in dropout. Bridge JP1 for FPWM
+  if you want DRSS active at light load.
 - **Two accepted DRC warnings**: the C1–C4 courtyard overlap (side-by-side pair
   whose cheapest escape is X, not Y) and an R3/R6 silkscreen clearance. Zero
-  errors, zero unconnected pads.
+  errors, zero unconnected pads. The generators cite a `DESIGN.md` for the
+  per-pair disposition of those warnings; **that file does not exist**, so the
+  waiver is currently undocumented.
 - **No input protection at all** — no TVS, no reverse-polarity FET, not even a
   DNP land. EN is hard-tied to VIN. Nothing here survives a hot-unplug inductive
   kick on a long 36 V lead. Bench use from a stiff supply only.
