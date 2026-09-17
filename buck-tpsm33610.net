@@ -2,7 +2,7 @@
 	(version "E")
 	(design
 		(source "/Users/fab/dev/ee/hw/buck-tpsm33610/buck-tpsm33610.kicad_sch")
-		(date "2026-09-16T13:45:39")
+		(date "2026-09-17T10:08:48")
 		(tool "Eeschema 10.0.5")
 		(sheet
 			(number "1")

@@ -827,8 +827,12 @@ def report(fps, pad_xy):
 
     worst_edge = min(((min(x0 + W / 2, W / 2 - x1, y0 + H / 2, H / 2 - y1), r)
                       for r, (x0, y0, x1, y1) in cu.items()))
+    # TOL is float noise only (1 nm), not slack: C1 sits at exactly the rule and
+    # min() over a few sums can land a hair under it.
+    TOL = 1e-6
+    edge_bad = worst_edge[0] < P["edge_clearance_mm"] - TOL
     print(f"copper to board edge {worst_edge[1]} at {worst_edge[0]:.3f} mm "
-          f"(rule {P['edge_clearance_mm']})")
+          f"(rule {P['edge_clearance_mm']}){'  <-- below rule' if edge_bad else ''}")
 
     # Pad-to-pad, per copper layer, different nets only, between footprints.
     # Measured on the pad polygons, not footprint bounding boxes: a box over a
@@ -932,7 +936,8 @@ def report(fps, pad_xy):
                           ("TP1", "2", "EN pad"), ("TP2", "1", "PGOOD pad"),
                           ("TP3", "11", "MODE pad")):
         print(f"    {ref:<3} -> U1.{pin:<2} {dist(ref, pin):5.2f} mm   {why}")
-    return sum(1 for g, _ in gaps if g < P["clearance_mm"])
+    return (sum(1 for g, _ in gaps if g < P["clearance_mm"])
+            + (1 if edge_bad else 0))
 
 
 def main():
@@ -952,9 +957,15 @@ def main():
     for net, layer, n_region, area in areas:
         print(f"pour {net:6s} {layer:5s} {n_region} region(s), {area:6.2f} mm^2")
     print(project_settings.verify(project_settings.prj_path(VKEY)))
-    report(fps, pad_xy)
+    # report()'s return was discarded here while --stage place acted on it, so
+    # copper-to-edge, pad-gap and silk violations were computed, printed and
+    # thrown away on the path that produces the SHIPPED board. KiCad DRC covers
+    # pad clearance independently but not these edge and silk checks.
+    n_close = report(fps, pad_xy)
     print(f"wrote {OUT.name}")
-    return 0
+    if n_close:
+        print(f"FAIL: {n_close} geometry violation(s) above -- see '<-- below rule'")
+    return 1 if n_close else 0
 
 
 if __name__ == "__main__":

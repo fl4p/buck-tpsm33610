@@ -64,6 +64,29 @@ NET_VMAX = {
     "FB":     7.0,
     "SW":    36.0,
 }
+# NET_VMAX above is a DECLARATION of intent. check_net_ceilings() below proves it
+# against the actual netlist, because the table is keyed on a net's NAME and a
+# name cannot notice that someone moved a pull-up to a different rail.
+#
+# These are the nets whose ceiling is set by something OTHER than the passive
+# network -- an external supply, ground, or a U1 output. Every other net inherits
+# its ceiling from whatever it is CONDUCTIVELY tied to. Source nets keep their own
+# value rather than inheriting: GND is reachable from VIN through the DNP EN
+# divider, but GND is driven, so that path does not raise GND's ceiling.
+NET_SOURCE_V = {
+    "VIN":  36.0,   # external supply, recommended operating maximum p.6
+    "GND":   0.0,
+    "VOUT":  7.0,   # U1 output; 7.0 is the ceiling the DNP divider allows
+    "VCC":   3.5,   # internal LDO, EC p.7
+    "SW":   36.0,   # U1 switch node, swings to VIN
+}
+# Reference prefixes that carry DC between their two pins. Capacitors do NOT --
+# a cap to a higher rail cannot pull a pin up at DC, which is the whole reason
+# C2 may sit on VIN next to a 5.5 V pin. JP1 is counted as CLOSED even though it
+# ships open: it exists to be bridged, so the conservative reading is the bridged
+# one. DNP parts are counted too -- a land that exists can be populated, and the
+# question this guard answers is what the board PERMITS, not what is fitted.
+CONDUCTIVE_PREFIXES = ("R", "JP")
 # Pins deliberately not covered, each with the reason it cannot be:
 ABS_MAX_EXEMPT = {
     "7": "BOOT is rated 5.5 V to SW, not to GND, so a net-to-GND ceiling cannot "
@@ -701,6 +724,76 @@ def check_abs_max():
     return len(u1)
 
 
+def check_net_ceilings():
+    """Prove NET_VMAX against the netlist instead of trusting it.
+
+    The failure this exists for: check_abs_max() compares a pin's rating against
+    NET_VMAX[net_name]. Move R3's pull-up from VCC to VIN and U1 pin 1 is still on
+    a net called PGOOD, whose declared ceiling is still 3.5 V -- so a 100k resistor
+    bridging 36 V onto a 20 V open-drain pin passes. The name did not change; the
+    circuit did. A guard keyed on the name cannot see it.
+
+    So: walk the conductive graph, give every non-source net the highest source it
+    can reach, and require the declared table to agree exactly. Too LOW is the
+    dangerous direction (the abs-max audit then runs against a fiction); too HIGH
+    means the table is stale, which is also worth a build failure because the next
+    reader will trust it.
+    """
+    pins = {}
+    for ref, pin, name in _PINNET:
+        pins.setdefault(ref, {})[pin] = name
+    adj, edges = {}, []
+    for ref, pn in sorted(pins.items()):
+        if not ref.startswith(CONDUCTIVE_PREFIXES) or len(pn) != 2:
+            continue
+        a, b = sorted(pn.values())
+        if a == b:
+            continue
+        edges.append((ref, a, b))
+        adj.setdefault(a, set()).add(b)
+        adj.setdefault(b, set()).add(a)
+    if not edges:
+        raise AssertionError(
+            "check_net_ceilings found NO conductive 2-pin parts -- the graph is "
+            "empty, so every ceiling would compute as its own source and the "
+            "guard would pass vacuously. Refusing to report a verdict.")
+
+    computed, bad = {}, []
+    for net in sorted(NET_VMAX):
+        if net in NET_SOURCE_V:
+            computed[net] = NET_SOURCE_V[net]
+            continue
+        # A SOURCE net terminates the walk: it is driven low-impedance, so it
+        # absorbs the path rather than conducting through it. Without this, GND
+        # bridges everything to everything -- GND touches VIN through the DNP EN
+        # divider, so every net on the board would "reach" 36 V and the guard
+        # would fire on a correct schematic.
+        seen, stack = {net}, [net]
+        while stack:
+            n = stack.pop()
+            if n != net and n in NET_SOURCE_V:
+                continue
+            for m in adj.get(n, ()):
+                if m not in seen:
+                    seen.add(m)
+                    stack.append(m)
+        reach = {n: NET_SOURCE_V[n] for n in seen if n in NET_SOURCE_V}
+        if not reach:
+            raise AssertionError(
+                f"net {net} reaches no source net through any resistor or jumper, "
+                f"so its ceiling cannot be derived -- unevaluable, not OK")
+        top = max(reach, key=reach.get)
+        computed[net] = reach[top]
+        if abs(computed[net] - NET_VMAX[net]) > 1e-9:
+            bad.append(f"{net}: declared {NET_VMAX[net]} V, but it is tied to "
+                       f"{top} ({reach[top]} V) through "
+                       f"{', '.join(r for r, a, b in edges if a in seen and b in seen)}")
+    if bad:
+        raise AssertionError(
+            "NET CEILING DISAGREES WITH THE NETLIST:\n  " + "\n  ".join(bad))
+    return computed
+
+
 def check_pin_coverage():
     """Every pin of every placed part must be declared on a net or no-connected.
 
@@ -733,9 +826,26 @@ def check_dnp_exclusivity():
     # is no fit conflict left on MODE to check. What replaced it is
     # check_mode_never_floats() below, which is the property the old pair was a
     # proxy for.
-    pairs = [("R1", "R2", "R1 = 0 ohm is the FIXED selector; a fitted R2 makes it "
-                          "a divider and the part would sense an adjustable path")]
-    bad = [why for a, b, why in pairs if a in fitted and b in fitted]
+    # Both remaining fit options are a 0R top leg with a DNP bottom leg, and in
+    # BOTH the conflict is conditional on the top leg still being 0R -- not on the
+    # bottom leg merely being fitted. Fitting R2 with R1 retuned to 33.2k IS the
+    # adjustable build and must pass; fitting R2 with R1 still 0R shorts VOUT to
+    # GND through R2. Same shape on EN: R5 with R4 still 0R does not make a UVLO
+    # divider, it puts R5 straight across VIN to GND and leaves EN hard-tied to
+    # VIN. The old check tested only "both fitted", which was over-strict on the
+    # legitimate adjustable build and silent on the R4/R5 pair entirely.
+    def _is_0r(ref):
+        v = str(BOM.get(ref, {}).get("Value", "")).strip().lower()
+        return v in ("0r", "0", "0 ohm", "0ohm", "0\u03a9", "0 \u03a9")
+
+    pairs = [
+        ("R1", "R2", "R1 = 0 ohm is the FIXED-output selector; a fitted R2 puts a "
+                     "resistor from VOUT to GND and the part would sense an "
+                     "adjustable path. Retune R1 to RFBT first"),
+        ("R4", "R5", "R4 = 0 ohm hard-ties EN to VIN; a fitted R5 is not a UVLO "
+                     "divider, it sits across VIN to GND. Give R4 a real value first"),
+    ]
+    bad = [why for a, b, why in pairs if a in fitted and b in fitted and _is_0r(a)]
     if bad:
         raise AssertionError("fit-option conflict:\n  " + "\n  ".join(bad))
     return len(fitted)
@@ -912,6 +1022,7 @@ def main():
     n_labels = check_labels_on_wires()
     n_syms = check_no_symbol_overlap()
     n_bom = check_bom_complete()
+    ceilings = check_net_ceilings()
     n_abs = check_abs_max()
     n_pins = check_pin_coverage()
     n_fit = check_dnp_exclusivity()
