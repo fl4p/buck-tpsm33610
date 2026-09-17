@@ -14,8 +14,11 @@ import sys
 
 # ---------------------------------------------------------------- process (Aisler)
 # Aisler 2-layer, 35 um copper, ENIG. Their published rules for that stack are
-# 125 um track / 125 um space; the board is drawn to 200/200 everywhere OUTSIDE
-# the module land, so the only geometry anywhere near a limit is the land itself
+# 125 um track / 125 um space; the board is drawn to 150/150 everywhere OUTSIDE
+# the module land (35 copper tracks sit on that 0.15 mm floor). That clears the
+# 125/125 ENIG rule but NOT 35 um HASL's 200 um track rule, so this board is
+# ENIG-only -- the copper weight is no longer a free choice at checkout.
+# The only other geometry near a limit is the land itself
 # (0.100 mm, a deliberate accepted rule break -- see gen_fp.py and
 # docs/2026-09-13-rdn0011b-land-pattern.md).
 PROCESS = {

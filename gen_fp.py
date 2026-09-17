@@ -95,7 +95,7 @@ LAND_TI = [
 #     physical limit rather than a conservative one. The 70 um option was worth
 #     roughly 10 C of ambient headroom (see DESIGN.md); it is the one place on
 #     this board where the rule should not be broken.
-#   * Everything OUTSIDE this footprint is still drawn to 200/200 um, so the
+#   * Everything OUTSIDE this footprint is drawn to 150/150 um, so the
 #     violation is confined to the 4.0 x 4.6 mm under the module and is the
 #     only thing an Aisler DRC complaint could be about.
 #
@@ -529,7 +529,7 @@ def main():
 
     # 1. No two copper lands may overlap, and the minimum copper gap has to clear
     #    the process. Aisler 2L is 150 um (35 um ENIG 125 um); this board is drawn
-    #    to 200 um everywhere EXCEPT inside this land, which the package sets and
+    #    to 150 um everywhere EXCEPT inside this land, which the package sets and
     #    we cannot widen -- so the real floor here is the fab's absolute minimum.
     def box(p):
         _, _, x, y, w, h = p

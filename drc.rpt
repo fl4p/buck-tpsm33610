@@ -1,16 +1,16 @@
 ** Drc report for buck-tpsm33610.kicad_pcb **
-** Created on 2026-09-16T16:04:14 **
+** Created on 2026-09-16T17:37:22 **
 ** Report includes: Errors, Warnings, Exclusions **
 
 ** Found 2 DRC violations **
 [courtyards_overlap]: Courtyards overlap
     Rule: board setup constraints courtyard; warning
-    @(97.7950 mm, 102.1525 mm): Footprint C1
     @(102.2000 mm, 102.1625 mm): Footprint C4
+    @(97.7950 mm, 102.1525 mm): Footprint C1
 [silk_overlap]: Silkscreen clearance (board setup constraints silk clearance 0.1000 mm; actual 0.0700 mm)
     Rule: board setup constraints silk; warning
-    @(98.0936 mm, 97.1670 mm): Segment of R6 on F.Silkscreen
     @(97.7864 mm, 97.3570 mm): Segment of R3 on F.Silkscreen
+    @(98.0936 mm, 97.1670 mm): Segment of R6 on F.Silkscreen
 
 ** Found 0 unconnected pads **
 
