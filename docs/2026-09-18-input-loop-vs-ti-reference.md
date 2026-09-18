@@ -13,6 +13,10 @@ of that code raised twenty findings, all real, all fixed; the numbers below are
 post-review. Everything here ran against a **scratch copy** of this project — the
 board files were never written, and the KiCad locks were left alone.
 
+To reproduce the tables: `python3 -m mlcc.vin_budget_tpsm33610` from `dcdc-tools`. It
+reads an extraction JSON, so pointing it at a different board means re-running the
+parasitics extractor first — and at the commit that was fabricated (§4.4), not at HEAD.
+
 ---
 
 ## 1. The limit, and where it comes from
@@ -152,7 +156,7 @@ against 1.36 Ω at 5.8 MHz — because a 0.1 µF on the short branch rings harde
 long one than the fitted 1 µF does. No part change is indicated. (Caveat: the copper was
 extracted for 1206/0603 pads, not TI's 1210/0402.)
 
-## 4.4 The board that went to fab is NOT the board in the repo
+### 4.4 The board that went to fab is NOT the board in the repo
 
 Checked 2026-09-18 after Fab reported the fabbed board has C1's GND pad on the right.
 That is the orientation at **`e6fe53a`**; `92baceb` (2026-09-16) rotated C1 180 deg and
@@ -191,15 +195,45 @@ Input ripple stays under 0.4 V pp, about 1 % of the rail.
 
 ## 5. What to do
 
+The hardware exists, so this splits into what governs *this* board and what governs the
+next revision.
+
+### 5.1 This board, now
+
+1. **Run it at 12-35 V, 1 A** (§4.4). No change is required to do that.
+2. **Measure the edge at bring-up before going above 35 V.** This is the single
+   measurement that collapses the whole parameter sweep: the entire 36 V question is a
+   disagreement between a 1 ns assumption (-0.12 V) and a 2 ns one (+2.0 V), and nothing
+   in the analysis can settle it. See §5.3 for how.
+3. **A backside 100 nF is retrofittable.** On a 2-layer board the bottom copper under the
+   VIN pins is reachable; if the measured edge turns out to be fast, this is the fix that
+   does not need a new board.
+
+### 5.2 Next revision
+
 1. **Decide the stackup question first.** It is the only change that fixes both modes,
    and it is a product decision (fab, cost), not a layout tweak.
-2. **If staying 2-layer: add the backside 100 nF**, and consider moving C1 beside C2.
-   Take the copper tweaks (wider VIN stub, third via) as free damping.
+2. **If staying 2-layer: add the backside 100 nF** as a placed part, and consider moving
+   C1 beside C2. Take the copper tweaks (wider VIN stub, third via) as free damping.
 3. **Add bulk** if the minimum-capacitance requirement turns out to be effective — and
-   ask TI which it is.
-4. **Measure the edge at bring-up.** One probe at the module pads at 36 V and full load
-   replaces this whole parameter sweep: it says whether the margin is 0.07 V or 3 V. The
-   board is unbuilt, so this costs nothing to plan for now.
+   ask TI which it is (§4.3).
+4. **Re-extract from the commit that is actually fabricated**, not from HEAD. §4.4 exists
+   because that was not done.
+
+### 5.3 The bring-up measurement
+
+What to capture, so the result is comparable with the tables above:
+
+* **Where:** across U1's VIN and GND *pads*, not at the connector and not across C1 —
+  everything here is referenced to the module pads.
+* **How:** ground spring, not a clip lead. A clip lead's own loop has been measured on
+  this bench to invent ringing that is not there (`~/dev/kb`, sw-ring-15mhz-was-probe-clip).
+* **What:** VIN at the switching edge, at 1 A, at 24 V and 35 V. Read (a) the peak
+  excursion **above** VIN — that is the number §4.4 compares with 40 V — and (b) the
+  10-90 % edge time.
+* **The verdict:** the overshoot column of §4.4 is `L_trunk x Iout / t_edge`. If the
+  measured edge is >=2 ns, 36 V has ~2 V of margin and the pessimistic row can be
+  retired. If it is near 1 ns, 35 V is the ceiling as written.
 
 ## 6. What this analysis does not know
 
