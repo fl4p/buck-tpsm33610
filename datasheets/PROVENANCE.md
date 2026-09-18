@@ -15,6 +15,10 @@ SHA-256:
 
 Hashed **after** the copy into this directory, not at download.
 
+**The PDF itself is not stored in this repository.** TI's document is not
+redistributed here; fetch it from the source URL above and check it against the
+SHA-256 before reading a number out of it. `datasheets/*.pdf` is gitignored.
+
 ## Fetch record
 
 Rung 1 of the access ladder (plain `curl -L` with a desktop Chrome UA) returned

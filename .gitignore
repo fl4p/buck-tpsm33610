@@ -7,3 +7,5 @@ _autosave-*
 buck-tpsm33610-floorplan.*
 # KiCad editor lock files (present while pcbnew/eeschema is open)
 ~*.lck
+# vendor datasheets -- not redistributed here; fetch per datasheets/PROVENANCE.md
+datasheets/*.pdf
